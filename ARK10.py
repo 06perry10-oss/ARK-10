@@ -298,7 +298,11 @@ class ArkApp:
                     elif event.key == pygame.K_BACKSPACE:
                         self.input_text = self.input_text[:-1]
                     elif event.key == pygame.K_ESCAPE:
-                        self.running = False
+                        # ESC toggles display mode; use the window close button to exit.
+                        now = pygame.time.get_ticks()
+                        if now - self.last_display_toggle >= 700:
+                            self.last_display_toggle = now
+                            self.toggle_display_mode()
                     elif event.unicode and event.unicode.isprintable():
                         self.input_text += event.unicode
             self.draw()
