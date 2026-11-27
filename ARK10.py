@@ -97,6 +97,7 @@ class ArkApp:
         self.screen = pygame.display.set_mode((0, 0), pygame.RESIZABLE)
         self.fullscreen = False
         self.windowed_size = self.screen.get_size()
+        self.last_display_toggle = -1000
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("segoeui,arial", 19)
         self.small = pygame.font.SysFont("segoeui,arial", 14)
@@ -283,7 +284,11 @@ class ArkApp:
                             self.settings_open = not self.settings_open
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_F11:
-                        self.toggle_display_mode()
+                        # Ignore OS key-repeat / duplicate F11 events during a mode transition.
+                        now = pygame.time.get_ticks()
+                        if now - self.last_display_toggle >= 700:
+                            self.last_display_toggle = now
+                            self.toggle_display_mode()
                     elif event.key == pygame.K_F2:
                         self.mode = "Local AI" if self.mode == "Offline" else "Offline"
                         self.status = "Mode: " + self.mode
