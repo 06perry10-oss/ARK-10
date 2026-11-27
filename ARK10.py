@@ -16,7 +16,7 @@ from pathlib import Path
 import pygame
 
 APP_NAME = "ARK-10"
-VERSION = "RC2"
+VERSION = "RC3"
 WIDTH, HEIGHT = 1920, 1080
 BG = (17, 20, 30)
 PANEL = (25, 30, 43)
@@ -95,6 +95,8 @@ class ArkApp:
         pygame.init()
         pygame.display.set_caption(f"{APP_NAME} {VERSION}")
         self.screen = pygame.display.set_mode((0, 0), pygame.RESIZABLE)
+        self.fullscreen = False
+        self.windowed_size = self.screen.get_size()
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("segoeui,arial", 19)
         self.small = pygame.font.SysFont("segoeui,arial", 14)
@@ -119,6 +121,18 @@ class ArkApp:
         self.running = True
         self.settings_open = False
         self.input_rect = pygame.Rect(280, HEIGHT - 78, WIDTH - 315, 54)
+
+    def toggle_display_mode(self):
+        """Toggle fullscreen with F11, remembering the windowed dimensions."""
+        if self.fullscreen:
+            self.screen = pygame.display.set_mode(self.windowed_size, pygame.RESIZABLE)
+            self.fullscreen = False
+        else:
+            current_size = self.screen.get_size()
+            if current_size[0] > 0 and current_size[1] > 0:
+                self.windowed_size = current_size
+            self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+            self.fullscreen = True
 
     def persist(self):
         save_json(HISTORY_FILE, self.messages[-200:])
@@ -254,8 +268,9 @@ class ArkApp:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
-                elif event.type == pygame.VIDEORESIZE:
-                    self.screen = pygame.display.set_mode((max(900, event.w), max(600, event.h)), pygame.RESIZABLE)
+                elif event.type == pygame.VIDEORESIZE and not self.fullscreen:
+                    self.windowed_size = (max(900, event.w), max(600, event.h))
+                    self.screen = pygame.display.set_mode(self.windowed_size, pygame.RESIZABLE)
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     if event.button == 4:
                         self.scroll = max(0, self.scroll - 45)
@@ -267,7 +282,9 @@ class ArkApp:
                         elif event.pos[0] < max(220, min(280, int(width * 0.15))) and event.pos[1] > height - 110:
                             self.settings_open = not self.settings_open
                 elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_F2:
+                    if event.key == pygame.K_F11:
+                        self.toggle_display_mode()
+                    elif event.key == pygame.K_F2:
                         self.mode = "Local AI" if self.mode == "Offline" else "Offline"
                         self.status = "Mode: " + self.mode
                         self.persist()
