@@ -16,8 +16,8 @@ from pathlib import Path
 import pygame
 
 APP_NAME = "ARK-10"
-VERSION = "RC1"
-WIDTH, HEIGHT = 1080, 720
+VERSION = "RC2"
+WIDTH, HEIGHT = 1920, 1080
 BG = (17, 20, 30)
 PANEL = (25, 30, 43)
 CARD = (34, 40, 56)
@@ -94,7 +94,7 @@ class ArkApp:
     def __init__(self):
         pygame.init()
         pygame.display.set_caption(f"{APP_NAME} {VERSION}")
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
+        self.screen = pygame.display.set_mode((0, 0), pygame.RESIZABLE)
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("segoeui,arial", 19)
         self.small = pygame.font.SysFont("segoeui,arial", 14)
@@ -118,7 +118,7 @@ class ArkApp:
         self.input_active = True
         self.running = True
         self.settings_open = False
-        self.input_rect = pygame.Rect(250, HEIGHT - 78, WIDTH - 285, 54)
+        self.input_rect = pygame.Rect(280, HEIGHT - 78, WIDTH - 315, 54)
 
     def persist(self):
         save_json(HISTORY_FILE, self.messages[-200:])
@@ -170,13 +170,19 @@ class ArkApp:
 
     def draw(self):
         width, height = self.screen.get_size()
+        sidebar_width = max(220, min(280, int(width * 0.15)))
+        content_left = sidebar_width + 28
+        content_right = width - 28
+        content_width = max(300, content_right - content_left)
+        conversation_width = min(content_width, 1360)
+        conversation_left = content_left + (content_width - conversation_width) // 2
         self.screen.fill(BG)
-        pygame.draw.rect(self.screen, PANEL, (0, 0, 220, height))
+        pygame.draw.rect(self.screen, PANEL, (0, 0, sidebar_width, height))
         self.draw_text("ARK-10", 24, 22, TEXT, self.title_font)
         self.draw_text(VERSION + "  •  FREE", 25, 60, GREEN, self.small)
-        pygame.draw.line(self.screen, (55, 62, 80), (18, 94), (202, 94), 1)
+        pygame.draw.line(self.screen, (55, 62, 80), (18, 94), (sidebar_width - 18, 94), 1)
         self.draw_text("WORKSPACE", 24, 115, MUTED, self.small)
-        pygame.draw.rect(self.screen, (45, 49, 78), (14, 143, 192, 42), border_radius=9)
+        pygame.draw.rect(self.screen, (45, 49, 78), (14, 143, sidebar_width - 28, 42), border_radius=9)
         self.draw_text("＋  New conversation", 27, 154, TEXT, self.small)
         self.draw_text("CHAT MODE", 24, 215, MUTED, self.small)
         self.draw_text("●  " + self.mode, 27, 244, GREEN if self.mode == "Offline" else ACCENT)
@@ -184,20 +190,23 @@ class ArkApp:
         self.draw_text("SETTINGS", 27, height - 90, MUTED, self.small)
         self.draw_text("Model: " + self.model, 27, height - 65, TEXT, self.small)
 
-        pygame.draw.rect(self.screen, PANEL, (220, 0, width - 220, 76))
-        self.draw_text("New chat", 252, 22, TEXT, self.title_font)
-        self.draw_text(self.status, width - 270, 31, GREEN if not self.busy else MUTED, self.small)
-        pygame.draw.line(self.screen, (55, 62, 80), (220, 76), (width, 76), 1)
+        pygame.draw.rect(self.screen, PANEL, (sidebar_width, 0, width - sidebar_width, 76))
+        self.draw_text("New chat", content_left, 22, TEXT, self.title_font)
+        status_surface = self.small.render(self.status, True, GREEN if not self.busy else MUTED)
+        self.screen.blit(status_surface, (content_right - status_surface.get_width(), 31))
+        pygame.draw.line(self.screen, (55, 62, 80), (sidebar_width, 76), (width, 76), 1)
 
-        chat_area = pygame.Rect(240, 90, width - 270, height - 190)
+        chat_area = pygame.Rect(conversation_left, 90, conversation_width, max(100, height - 190))
+        old_clip = self.screen.get_clip()
+        self.screen.set_clip(chat_area)
         y = chat_area.y - self.scroll
         for item in self.messages[-100:]:
             role = item.get("role", "assistant")
             content = item.get("content", "")
-            bubble_width = min(chat_area.width - 30, 690)
+            bubble_width = min(max(360, int(chat_area.width * 0.72)), chat_area.width - 24)
             lines = self.wrap(content, bubble_width - 34)
             bubble_height = 24 + len(lines) * 25
-            x = width - bubble_width - 28 if role == "user" else 250
+            x = chat_area.right - bubble_width - 12 if role == "user" else chat_area.x + 12
             if y + bubble_height >= chat_area.y and y <= chat_area.bottom:
                 pygame.draw.rect(self.screen, (54, 52, 91) if role == "user" else CARD,
                                  (x, y, bubble_width, bubble_height), border_radius=12)
@@ -207,17 +216,20 @@ class ArkApp:
                     self.draw_text(line, x + 16, y + 29 + index * 25)
             y += bubble_height + 14
         if not self.messages:
-            self.draw_text("Welcome to ARK-10", 252, 260, TEXT, self.title_font)
-            self.draw_text("A clean, free starting point for the ARK series.", 254, 302, MUTED)
-            self.draw_text("Type a message below to get started.", 254, 334, MUTED)
+            self.draw_text("Welcome to ARK-10", chat_area.x + 12, chat_area.y + 170, TEXT, self.title_font)
+            self.draw_text("A clean, free starting point for the ARK series.", chat_area.x + 14, chat_area.y + 212, MUTED)
+            self.draw_text("Type a message below to get started.", chat_area.x + 14, chat_area.y + 244, MUTED)
+        self.screen.set_clip(old_clip)
 
-        self.input_rect = pygame.Rect(250, height - 78, width - 285, 54)
+        input_width = min(conversation_width, 1360)
+        input_left = conversation_left + (conversation_width - input_width) // 2
+        self.input_rect = pygame.Rect(input_left, height - 78, input_width - 90, 54)
         pygame.draw.rect(self.screen, CARD, self.input_rect, border_radius=12)
         shown = self.input_text[-90:]
         self.draw_text(shown or "Message ARK-10...", self.input_rect.x + 16,
                        self.input_rect.y + 16, TEXT if shown else MUTED)
-        pygame.draw.rect(self.screen, ACCENT, (width - 112, height - 70, 66, 38), border_radius=9)
-        self.draw_text("Send", width - 101, height - 61, TEXT, self.small)
+        pygame.draw.rect(self.screen, ACCENT, (self.input_rect.right + 12, height - 70, 66, 38), border_radius=9)
+        self.draw_text("Send", self.input_rect.right + 23, height - 61, TEXT, self.small)
         pygame.display.flip()
 
     def handle_results(self):
@@ -243,16 +255,16 @@ class ArkApp:
                 if event.type == pygame.QUIT:
                     self.running = False
                 elif event.type == pygame.VIDEORESIZE:
-                    self.screen = pygame.display.set_mode((max(700, event.w), max(500, event.h)), pygame.RESIZABLE)
+                    self.screen = pygame.display.set_mode((max(900, event.w), max(600, event.h)), pygame.RESIZABLE)
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     if event.button == 4:
                         self.scroll = max(0, self.scroll - 45)
                     elif event.button == 5:
                         self.scroll += 45
                     elif event.button == 1:
-                        if event.pos[0] > width - 125 and event.pos[1] > height - 90:
+                        if self.input_rect.right < event.pos[0] < self.input_rect.right + 90 and event.pos[1] > height - 90:
                             self.send()
-                        elif event.pos[0] < 220 and event.pos[1] > height - 110:
+                        elif event.pos[0] < max(220, min(280, int(width * 0.15))) and event.pos[1] > height - 110:
                             self.settings_open = not self.settings_open
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_F2:
