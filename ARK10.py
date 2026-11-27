@@ -124,16 +124,35 @@ class ArkApp:
         self.input_rect = pygame.Rect(280, HEIGHT - 78, WIDTH - 315, 54)
 
     def toggle_display_mode(self):
-        """Toggle fullscreen with F11, remembering the windowed dimensions."""
-        if self.fullscreen:
-            self.screen = pygame.display.set_mode(self.windowed_size, pygame.RESIZABLE)
-            self.fullscreen = False
-        else:
-            current_size = self.screen.get_size()
-            if current_size[0] > 0 and current_size[1] > 0:
-                self.windowed_size = current_size
-            self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-            self.fullscreen = True
+        """Safely toggle fullscreen without allowing display errors to close the app."""
+        previous_fullscreen = self.fullscreen
+        previous_size = self.windowed_size
+        try:
+            if self.fullscreen:
+                target_size = (
+                    max(900, min(previous_size[0], 1920)),
+                    max(600, min(previous_size[1], 1080)),
+                )
+                new_screen = pygame.display.set_mode(target_size, pygame.RESIZABLE)
+                self.fullscreen = False
+                self.screen = new_screen
+                self.status = "Windowed mode"
+            else:
+                current_size = self.screen.get_size()
+                if current_size[0] >= 900 and current_size[1] >= 600:
+                    self.windowed_size = current_size
+                new_screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+                self.screen = new_screen
+                self.fullscreen = True
+                self.status = "Fullscreen mode"
+            # SDL can queue a resize event for the mode change. Discard it so
+            # the old dimensions cannot immediately overwrite the new mode.
+            pygame.event.clear(pygame.VIDEORESIZE)
+        except (pygame.error, OSError, ValueError) as exc:
+            self.fullscreen = previous_fullscreen
+            self.windowed_size = previous_size
+            self.status = "Display toggle failed: " + str(exc)[:70]
+            print("ARK-10 display toggle failed:", repr(exc))
 
     def persist(self):
         save_json(HISTORY_FILE, self.messages[-200:])
@@ -298,7 +317,7 @@ class ArkApp:
                     elif event.key == pygame.K_BACKSPACE:
                         self.input_text = self.input_text[:-1]
                     elif event.key == pygame.K_ESCAPE:
-                        # ESC toggles display mode; use the window close button to exit.
+                        # ESC toggles display mode; a failed transition must not close the app.
                         now = pygame.time.get_ticks()
                         if now - self.last_display_toggle >= 700:
                             self.last_display_toggle = now
